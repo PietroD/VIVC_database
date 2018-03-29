@@ -1,0 +1,223 @@
+---
+title: "VIVC database mining"
+author: "Pietro Delfino"
+date: "2018-03-28"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+I downloaded manually (argh!) all the files you can find in the **data** folder (in this GitHub repo), from the website [VIVC](www.vivc.de), specifically all the SSR (microsatellite markers) info available and the passport data (that is, color of the berry and country of origin of the variety) for all the cultivars
+
+If someone out there would be so kind to help me in fetching data on this website in an automated and recursive way, with any of the wonderful **R** or **Python** libraries available, it would be of great help.
+The problem is that to download data from vivc.de one needs to generate an *Excel* table selecting a certain number of varieties and it is not possible to get all the info at once
+
+Apart from that, I did the job for you (it did not take too long actually =) ) so here are the data
+
+First load some libraries
+
+```{r, message=FALSE}
+library(prettydoc); library(kableExtra); library(data.table); library(knitr); library(xlsx); library(readxl); library(dplyr); library(ggplot2); library(poppr); library(ggsci); library(forcats); library(scales)
+```
+
+
+```{r}
+length(dir('data/DB_complete/', recursive = T))
+length(dir('data/SSR_data/', recursive = T))
+head(dir('data/DB_complete/', recursive = T))
+head(dir('data/SSR_data/', recursive = T))
+```
+
+Let's load the complete database, listing all the files with '.xlsx' in the *DB_complete* subfolder and applying the `read.xlsx` function to this list
+
+```{r}
+vivc.list <- list.files(path = 'data/DB_complete/',
+                        pattern = '.xlsx',
+                        full.names = T,
+                        recursive = T)
+
+length(vivc.list)
+
+vivc.files <- lapply(vivc.list, function(x) read.xlsx(x, sheetName  = 'Worksheet'))
+
+names(vivc.files) <- vivc.list
+
+length(vivc.files)
+```
+
+Let's check the structure of a single file
+
+```{r, echo=F}
+kable(head(vivc.files[[1]]), align = 'l', row.names = F)
+
+kable(head(vivc.files[[129]]), align = 'l', row.names = F)
+```
+
+Since all the files have the same structure we can call `rbind` on the list
+
+```{r}
+vivc.all <- do.call('rbind', vivc.files)
+
+kable(head(vivc.all), align = 'l', row.names = F)
+
+dim(vivc.all)
+
+rownames(vivc.all) <- c(1:12862)
+
+DT::datatable(vivc.all, rownames = F, filter = "top")
+```
+
+Check if there are duplicated entries
+
+```{r}
+dim(vivc.all[duplicated(vivc.all), ])
+```
+
+There are no duplicated entries.
+Let's plot some statistics about berry color
+
+```{r, dev='svg'}
+ggplot(vivc.all, aes(Color.of.berry.skin)) +
+  geom_bar() +
+  labs(x="Color of berry skin", y="Count") +
+  theme_bw()
+```
+
+And some about country of origin
+
+```{r, dev='svg'}
+ggplot(vivc.all, aes(fct_infreq(Country.of.origin.of.the.variety))) +
+  geom_bar() +
+  labs(x="Country of origin", y="Count") +
+  theme_bw() +
+  theme(axis.text.x=element_text(angle=90,hjust=1, size = 4))
+```
+
+**Italy rules over France!!**
+
+At this stage I want to load the SSR info and merge them with the entire database. Same steps as before
+
+```{r}
+ssr.list <- list.files(path = 'data/SSR_data/',
+                       pattern = '.xlsx',
+                       full.names = T)
+
+ssr.files <- lapply(ssr.list, function(x) read.xlsx(x, sheetName  = 'Worksheet'))
+
+names(ssr.files) <- ssr.list
+
+length(ssr.files)
+```
+
+Let's check the structure of a single file
+
+```{r}
+kable(ssr.files[[1]][1:6,1:8], align = 'l', row.names = F)
+
+kable(ssr.files[[206]][1:6,1:8], align = 'l', row.names = F)
+
+# same structure over all files, call rbind
+
+ssr.all <- do.call('rbind', ssr.files)
+
+kable(ssr.all[1:6,1:8], align = 'l', row.names = F)
+
+dim(ssr.all)
+
+str(ssr.all)
+```
+
+There's a problem with the column VVMD32A2, a single value is saved as two allele size. Since I don't know which one is correct, I replace it with missing value
+
+```{r}
+ssr.all$VVMD32A2 <- gsub('272/274', 'NA', ssr.all$VVMD32A2)
+
+ssr.all$VVMD32A2 <- as.numeric(ssr.all$VVMD32A2)
+
+rownames(ssr.all) <- c(1:3688)
+
+DT::datatable(ssr.all, rownames = F, filter = 'top')
+```
+
+Check if there are duplicated cultivars
+
+```{r}
+dim(ssr.all[duplicated(ssr.all), ])
+
+sum(duplicated(ssr.all$Reference.variety))
+
+#kable(head(ssr.all[duplicated(ssr.all[,1]),]), align='l', row.names = F)
+
+#ssr.all[duplicated(ssr.all$Reference.variety),]
+```
+
+There are some duplicated names. I want to keep all of them and give different names to the ones with same name. Later I will explore if same name means also same SSR profile
+
+```{r}
+rownames(ssr.all) = make.names(names = ssr.all$Reference.variety, unique=TRUE)
+
+#ssr.all[duplicated(ssr.all$Reference.variety),] %>%
+#  .[order(as.character(.$Reference.variety)),] %>%
+#  kable(., align='l', row.names = T)
+```
+
+Now the duplicated have different names, and I replace the old names with the new ones with different numbers corresponding to more synonyms
+
+```{r, echo=F}
+ssr.all$Reference.variety <- rownames(ssr.all)
+
+kable(ssr.all[1:6,1:8], align = 'l', row.names = F)
+```
+
+Now I can merge the complete db with the SSR file. Before I check if there are duplicated names and change the names of the complete db with the same method as before, so to uniform it with the SSR file
+
+```{r}
+sum(duplicated(vivc.all$Prime.name))
+```
+
+There are 86 entries with the same name. I create unique names adding a number to the duplicated entries
+
+```{r}
+rownames(vivc.all) = make.names(names = vivc.all$Prime.name, unique=TRUE)
+
+vivc.all$Prime.name <- rownames(vivc.all)
+
+kable(vivc.all[1:6,], align = 'l', row.names = F)
+
+sum(duplicated(vivc.all$Prime.name))
+```
+
+Now I can merge the two files, keeping only the entries in common
+
+```{r}
+ssr.with.info <- merge(ssr.all, vivc.all, by.x='Reference.variety', by.y='Prime.name', all=F)
+
+dim(ssr.with.info)
+```
+
+In this way we exclude around 400 cultivars with no complete info. Let's double check also for duplicated entries
+
+```{r}
+kable(ssr.with.info[1:6,c(1:2,19:22)], align = 'l', row.names = F)
+
+sum(duplicated(ssr.with.info))
+
+sum(duplicated(ssr.with.info$Reference.variety))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
