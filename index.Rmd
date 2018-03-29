@@ -249,6 +249,76 @@ STAN          | All the countries of middle-east which ends in 'stan' (except AZ
 SUSA          | South and Center America
 WE            | Western Europe
 
+Now we merge the new code file with the SSR data frame to have the new 13 country codes all together with the cultivars info
+
+```{r}
+ssr.complete <- merge(ssr.with.info, new.country.codes,
+                      by.x = 'Country.of.origin.of.the.variety',
+                      by.y = 'old',
+                      all = T)
+
+kable(ssr.complete[1:6, c(1:4,23)], align = 'l', row.names = F)
+
+dim(ssr.complete)
+```
+
+Using the option `all = T` with the `merge` command created some entries with `NA` in the names. Let's remove them
+
+```{r}
+ssr.complete <- ssr.complete[!is.na(ssr.complete$Reference.variety), ]
+
+sum(is.na(ssr.complete$Reference.variety))
+
+kable(ssr.complete[1:6, c(1:4,23)], align = 'l', row.names = F)
+```
+
+Since the data frame is formatted with two columns for each locus (one allele each column), we first need to convert it to the format: one column each locus, with the two alleles separated by a slash (/). Then we will use the function `df2genind` from *adegenet* to convert the df to a genind object
+
+There are 9 SSR in the database; since grapevine is diploid each SSR locus has two alleles, so 18 columns in total. We create 9 new columns where we paste the content of each adjacent columns (being the df organized in this way, that is the two alleles of the same locus in adjacent columns)
+
+```{r}
+col.to.add <- 24:32
+
+ssr.complete[, col.to.add] <- (sapply(seq(from = 3,
+                                          to = 20,
+                                          by=2),
+                                      function(i) paste0(ssr.complete[,i],'/',
+                                                         ssr.complete[,i+1]))
+                               )
+
+ssr.df.for.adegenet <- ssr.complete[,c(2,23:32)]
+
+names(ssr.df.for.adegenet)[2] <- 'pop'
+
+names(ssr.df.for.adegenet)[3:11] <- c('VVSA2', 'VVMD5', 'VVMD7', 'VVMD25', 'VVMD27', 'VVMD28', 'VVMD32', 'VrZAG62', 'VrZAG79') 
+```
+
+Now the new df is ready to be converted to a genind object
+
+```{r}
+ssr.complete.genind <- df2genind(ssr.df.for.adegenet[,3:11],
+                                 ploidy=2,
+                                 sep='/', 
+                                 pop = ssr.df.for.adegenet$pop, 
+                                 ind.names = ssr.df.for.adegenet$Reference.variety, 
+                                 loc.names = names(ssr.df.for.adegenet)[3:11]
+                                 )
+
+ssr.complete.genind
+
+length(unique(pop(ssr.complete.genind)))
+
+gac <- genotype_curve(ssr.complete.genind, sample = 1000, quiet = TRUE)
+```
+
+
+
+
+
+
+
+
+
 
 
 
