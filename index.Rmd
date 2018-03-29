@@ -11,12 +11,14 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
-I downloaded manually (argh!) all the files you can find in the **data** folder (in this GitHub repo), from the website [VIVC](www.vivc.de), specifically all the SSR (microsatellite markers) info available and the passport data (that is, color of the berry and country of origin of the variety) for all the cultivars
+I downloaded manually (argh!) all the files you can find in the **data** folder (in this GitHub repo), from the website <http://www.vivc.de>, specifically all the SSR (microsatellite markers) info available and the passport data (that is, color of the berry and country of origin of the variety) for all the cultivars
 
 If someone out there would be so kind to help me in fetching data on this website in an automated and recursive way, with any of the wonderful **R** or **Python** libraries available, it would be of great help.
 The problem is that to download data from vivc.de one needs to generate an *Excel* table selecting a certain number of varieties and it is not possible to get all the info at once
 
 Apart from that, I did the job for you (it did not take too long actually =) ) so here are the data
+
+### Data preparation
 
 First load some libraries
 
@@ -133,7 +135,7 @@ str(ssr.all)
 
 There's a problem with the column VVMD32A2, a single value is saved as two allele size. Since I don't know which one is correct, I replace it with missing value
 
-```{r}
+```{r, message=FALSE}
 ssr.all$VVMD32A2 <- gsub('272/274', 'NA', ssr.all$VVMD32A2)
 
 ssr.all$VVMD32A2 <- as.numeric(ssr.all$VVMD32A2)
@@ -207,13 +209,45 @@ kable(ssr.with.info[1:6,c(1:2,19:22)], align = 'l', row.names = F)
 sum(duplicated(ssr.with.info))
 
 sum(duplicated(ssr.with.info$Reference.variety))
-
 ```
 
+### First steps with *adegenet* functions within the *poppr* package ('poppr' in CRAN)
 
+Before converting the data frame to a **genind** object that will be used in *adegenet*, I want to check how many unique country of origins exist, since they will be used as populations for the next analysis. The idea is to group different countries within the same 'population'. To this aim I manually checked all the countries and tried to identify major populations
 
+```{r}
+kable(table(ssr.with.info$Country.of.origin.of.the.variety), align = 'l', row.names = F)
 
+length(table(ssr.with.info$Country.of.origin.of.the.variety))
+```
 
+The number of distinct countries is 71.
+Outside `R`, after long hours of meditation, I created a new country coding scheme, that is found in the *data* folder
+
+```{r}
+new.country.codes <- read.table('data/new_countries_code.txt',
+                                col.names = c('old', 'new'),
+                                header = F,
+                                sep='\t')
+
+kable(new.country.codes, align = 'l', row.names = F)
+
+length(table(new.country.codes$new))
+```
+
+There are now 13 unique 'populations'. If you want to know what 'STAN' stands for, check this code conversion table
+
+Table Header  | Second Header
+------------- | -------------
+CE            | Center Europe
+EE            | Eastern Europe
+NE            | North Europe
+NoA           | North Africa
+SA            | South Africa
+SE            | Southern Europe
+STAN          | All the countries of middle-east which ends in 'stan' (except AZERBEIJAN)
+SUSA          | South and Center America
+WE            | Western Europe
 
 
 
