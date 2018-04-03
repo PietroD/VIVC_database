@@ -245,7 +245,7 @@ NE            | North Europe
 NoA           | North Africa
 SA            | South Africa
 SE            | Southern Europe
-STAN          | All the countries of middle-east which ends in 'stan' (except AZERBEIJAN)
+STAN          | All the countries of middle-east which ends in 'stan' (except AZERBAIJAN)
 SUSA          | South and Center America
 WE            | Western Europe
 
@@ -262,7 +262,7 @@ kable(ssr.complete[1:6, c(1:4,23)], align = 'l', row.names = F)
 dim(ssr.complete)
 ```
 
-Using the option `all = T` with the `merge` command created some entries with `NA` in the names. Let's remove them
+Using the option `all = T` with the `merge` command created some entries with `NA` in the names. Let's remove them. We also need to remove the factors that are not present anymore after removing these entries
 
 ```{r}
 ssr.complete <- ssr.complete[!is.na(ssr.complete$Reference.variety), ]
@@ -270,6 +270,8 @@ ssr.complete <- ssr.complete[!is.na(ssr.complete$Reference.variety), ]
 sum(is.na(ssr.complete$Reference.variety))
 
 kable(ssr.complete[1:6, c(1:4,23)], align = 'l', row.names = F)
+
+ssr.complete$new <- droplevels(ssr.complete$new)
 ```
 
 Since the data frame is formatted with two columns for each locus (one allele each column), we first need to convert it to the format: one column each locus, with the two alleles separated by a slash (/). Then we will use the function `df2genind` from *adegenet* to convert the df to a genind object
@@ -308,10 +310,46 @@ ssr.complete.genind
 
 length(unique(pop(ssr.complete.genind)))
 
-gac <- genotype_curve(ssr.complete.genind, sample = 1000, quiet = TRUE)
+#gac <- genotype_curve(ssr.complete.genind, sample = 1000, quiet = TRUE)
 ```
 
+The main aim of my exploration is to find out if 9 microsatellite markers are enough to identify geographic clusters in the more than 3000 cultivars. Actually, we already have a geographic classification (13 groups), so we will compare the one we already have with the one performed by the function `find.clusters` from the *adegenet* package.
+Before running the command with `n.pca` and `n.clust` parameters, it is recommended to run it without and choose these 2 values interactively. I did this before and come with the following.
+As first thing I try to match the 13 *a priori* groups with 13 picked by the function
 
+```{r, message=T, warning=F, dev='svg'}
+length(unique(pop(ssr.complete.genind)))
+
+grp <- find.clusters(ssr.complete.genind, 
+                     max.n.clust=100, 
+                     n.pca = 250,
+                     n.clust = 12)
+
+table(pop(ssr.complete.genind), grp$grp)
+
+table.value(table(pop(ssr.complete.genind), grp$grp), col.lab=paste("Inf", 1:12),
+            row.lab=levels(ssr.complete$new))
+```
+
+Not a really clear overlapping between the two classifications.
+Let's try to plot the **DAPC** object after calling the function `dapc`
+
+```{r, message=T, warning=F, dev='svg'}
+# evaluate this interactively before
+dapc <- dapc(ssr.complete.genind,
+             n.pca=100,
+             n.da=3,
+             pop = grp$grp)
+
+scatter(dapc)
+
+# dapc.a.priori <- dapc(ssr.complete.genind,
+#                       n.pca=100,
+#                       n.da=3,
+#                       pop = pop(ssr.complete.genind))
+# 
+# scatter(dapc.a.priori)
+```
 
 
 
