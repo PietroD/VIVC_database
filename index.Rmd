@@ -265,11 +265,33 @@ dim(ssr.complete)
 Using the option `all = T` with the `merge` command created some entries with `NA` in the names. Let's remove them. We also need to remove the factors that are not present anymore after removing these entries
 
 ```{r}
+levels <- levels(ssr.complete$Country.of.origin.of.the.variety)
+
+levels[length(levels) + 1] <- "Unknown"
+
+# refactor cultivars to include "Unknown" as a factor level
+# and replace NA with "Unknown"
+ssr.complete$Country.of.origin.of.the.variety <- factor(ssr.complete$Country.of.origin.of.the.variety, levels = levels)
+
+ssr.complete$Country.of.origin.of.the.variety[is.na(ssr.complete$Country.of.origin.of.the.variety)] <- "Unknown"
+
+levels <- levels(ssr.complete$new)
+
+levels[length(levels) + 1] <- "Unk"
+
+# refactor cultivars to include "Unknown" as a factor level
+# and replace NA with "Unknown"
+ssr.complete$new <- factor(ssr.complete$new, levels = levels)
+
+ssr.complete$new[is.na(ssr.complete$new)] <- "Unk"
+
 ssr.complete <- ssr.complete[!is.na(ssr.complete$Reference.variety), ]
 
 sum(is.na(ssr.complete$Reference.variety))
 
 kable(ssr.complete[1:6, c(1:4,23)], align = 'l', row.names = F)
+
+ssr.complete$Country.of.origin.of.the.variety <- droplevels(ssr.complete$Country.of.origin.of.the.variety)
 
 ssr.complete$new <- droplevels(ssr.complete$new)
 ```
@@ -334,7 +356,7 @@ table.value(table(pop(ssr.complete.genind), grp$grp), col.lab=paste("Inf", 1:12)
 Not a really clear overlapping between the two classifications.
 Let's try to plot the **DAPC** object after calling the function `dapc`
 
-```{r, message=T, warning=F, dev='svg'}
+```{r, dev='svg'}
 # evaluate this interactively before
 dapc <- dapc(ssr.complete.genind,
              n.pca=100,
@@ -351,9 +373,63 @@ scatter(dapc)
 # scatter(dapc.a.priori)
 ```
 
+Since we are not very satisfied with the results, we can try the new method implemented in *adegenet* via the function `snapclust`. We will apply this function to the same `genind` object, but first we will try to identify the optimal number of clusters using the function `snapclust.choose.k`.
 
+```{r, dev='svg'}
+vivc.aic <- snapclust.choose.k(40, ssr.complete.genind)
 
+plot(vivc.aic, type = "b", cex = 2, xlab = "k", ylab = "AIC")
 
+points(which.min(vivc.aic), min(vivc.aic), col = "blue", pch = 20, cex = 2)
+
+abline(v = 35, lty = 2, col = "red")
+```
+
+Repeat the same steps with BIC values instead
+
+```{r, dev='svg'}
+vivc.bic <- snapclust.choose.k(40, ssr.complete.genind, IC = BIC)
+
+plot(vivc.bic, type = "b", cex = 2, xlab = "k", ylab = "BIC")
+
+points(which.min(vivc.bic), min(vivc.bic), col = "blue", pch = 20, cex = 2)
+
+abline(v = 12, lty = 2, col = "red")
+```
+
+From the BIC evaluations it looks like there is a good improvement in finding a clear minimun value that can help in defining a correct number of clusters. From raw values, the minimun is when K=7, but K={8,9,10} is also probable. Considering that from my human opinable classification I defined 12 groups, this smaller number of cluster can help refine my classification. Let's do some plotting
+
+```{r, dev='svg'}
+# we impose K=7 as first attempt
+vivc.clust <- snapclust(ssr.complete.genind, k = 7)
+
+head(vivc.clust$group, 7)
+
+length(vivc.clust$group)
+
+head(round(vivc.clust$proba),3)
+
+vivc.clust$converged
+
+a.tab <- table(pop(ssr.complete.genind), vivc.clust$group)
+
+a.tab
+
+table.value(a.tab, col.labels = 1:7)
+
+# some colorful image
+compoplot(vivc.clust)
+
+# dapc again
+seven.dapc <- dapc(ssr.complete.genind, 
+                   n.pca = 100, 
+                   n.da = 3, 
+                   grp = vivc.clust$group)
+
+scatter(seven.dapc, clab = 0.85, col = funky(24),
+        posi.da="topleft", posi.pca = "bottomleft",
+        scree.pca = TRUE, grp = vivc.clust$group)
+```
 
 
 
