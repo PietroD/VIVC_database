@@ -1,7 +1,7 @@
 ---
 title: "VIVC database mining"
 author: "Pietro Delfino"
-date: "2018-03-28"
+date: "`r format(Sys.Date())`"
 output:
   prettydoc::html_pretty:
     theme: cayman
@@ -135,7 +135,7 @@ str(ssr.all)
 
 There's a problem with the column VVMD32A2, a single value is saved as two allele size. Since I don't know which one is correct, I replace it with missing value
 
-```{r, message=FALSE}
+```{r, message=FALSE, cols.print=8}
 ssr.all$VVMD32A2 <- gsub('272/274', 'NA', ssr.all$VVMD32A2)
 
 ssr.all$VVMD32A2 <- as.numeric(ssr.all$VVMD32A2)
@@ -215,7 +215,7 @@ sum(duplicated(ssr.with.info$Reference.variety))
 
 Before converting the data frame to a **genind** object that will be used in *adegenet*, I want to check how many unique country of origins exist, since they will be used as populations for the next analysis. The idea is to group different countries within the same 'population'. To this aim I manually checked all the countries and tried to identify major populations
 
-```{r}
+```{r, rows.print=8}
 kable(table(ssr.with.info$Country.of.origin.of.the.variety), align = 'l', row.names = F)
 
 length(table(ssr.with.info$Country.of.origin.of.the.variety))
@@ -224,7 +224,7 @@ length(table(ssr.with.info$Country.of.origin.of.the.variety))
 The number of distinct countries is 71.
 Outside `R`, after long hours of meditation, I created a new country coding scheme, that is found in the *data* folder
 
-```{r}
+```{r, rows.print=8}
 new.country.codes <- read.table('data/new_countries_code.txt',
                                 col.names = c('old', 'new'),
                                 header = F,
